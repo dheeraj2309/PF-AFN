@@ -7,5 +7,5 @@ class TestOptions(BaseOptions):
         self.parser.add_argument('--warp_checkpoint', type=str, default='checkpoints/PFAFN/warp_model_final.pth', help='load the pretrained model from the specified location')
         self.parser.add_argument('--gen_checkpoint', type=str, default='checkpoints/PFAFN/gen_model_final.pth', help='load the pretrained model from the specified location')
         self.parser.add_argument('--phase', type=str, default='test', help='train, val, test, etc')
-
+        self.parser.add_argument('--unpaired', action='store_true', help='if enables, uses unpaired data from dataset')
         self.isTrain = False
