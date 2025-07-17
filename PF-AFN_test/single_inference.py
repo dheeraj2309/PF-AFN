@@ -76,7 +76,7 @@ def main(opt):
     MODEL_WIDTH = 192
     
     # This must match the number of segmentation classes the model was trained with.
-    NUM_SEMANTIC_CLASSES = 13
+    NUM_SEMANTIC_CLASSES = 20
     
     class MockOptions:
         def __init__(self):

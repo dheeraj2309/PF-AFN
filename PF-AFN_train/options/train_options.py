@@ -27,6 +27,8 @@ class TrainOptions(BaseOptions):
         self.parser.add_argument('--PFAFN_gen_checkpoint', type=str,  help='load the pretrained model from the specified location')
         self.parser.add_argument('--PBAFN_warp_checkpoint', type=str, help='load the pretrained model from the specified location')
         self.parser.add_argument('--PBAFN_gen_checkpoint', type=str,  help='load the pretrained model from the specified location')
+        self.parser.add_argument('--subset_size', type=int, default=0, help='if > 0, train on a random subset of this size. default 0 means use full dataset.')
+        self.parser.add_argument('--random_seed', type=int, default=42, help='seed for random subset selection')
         # for discriminators        
         self.parser.add_argument('--num_D', type=int, default=2, help='number of discriminators to use')
         self.parser.add_argument('--n_layers_D', type=int, default=3, help='only used if which_model_netD==n_layers')
