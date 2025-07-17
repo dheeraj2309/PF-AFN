@@ -3,6 +3,8 @@ import os
 from util import util
 import torch
 
+_GLOBAL_PARSED_OPTIONS = None
+
 class BaseOptions():
     def __init__(self):
         self.parser = argparse.ArgumentParser()
@@ -52,6 +54,11 @@ class BaseOptions():
         self.initialized = True
 
     def parse(self, save=True):
+        global _GLOBAL_PARSED_OPTIONS
+
+        if _GLOBAL_PARSED_OPTIONS is not None:
+            return _GLOBAL_PARSED_OPTIONS
+
         if not self.initialized:
             self.initialize()
         opt, _ = self.parser.parse_known_args()
@@ -74,20 +81,25 @@ class BaseOptions():
 
         args = vars(self.opt)
 
-        print('------------ Options -------------')
-        for k, v in sorted(args.items()):
-            print('%s: %s' % (str(k), str(v)))
-        print('-------------- End ----------------')
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
 
-        # save to the disk        
-        expr_dir = os.path.join(self.opt.checkpoints_dir, self.opt.name)
-        util.mkdirs(expr_dir)
-        # MODIFICATION 3 (Optional but good practice): check if 'continue_train' exists before accessing
-        if save and not getattr(self.opt, 'continue_train', False):
-            file_name = os.path.join(expr_dir, 'opt.txt')
-            with open(file_name, 'wt') as opt_file:
-                opt_file.write('------------ Options -------------\n')
-                for k, v in sorted(args.items()):
-                    opt_file.write('%s: %s\n' % (str(k), str(v)))
-                opt_file.write('-------------- End ----------------\n')
+        # Only print and save options from the main process (rank 0)
+        if local_rank == 0:
+            print('------------ Options -------------')
+            for k, v in sorted(args.items()):
+                print('%s: %s' % (str(k), str(v)))
+            print('-------------- End ----------------')
+
+            expr_dir = os.path.join(self.opt.checkpoints_dir, self.opt.name)
+            util.mkdirs(expr_dir)
+            if save and not getattr(self.opt, 'continue_train', False):
+                file_name = os.path.join(expr_dir, 'opt.txt')
+                with open(file_name, 'wt') as opt_file:
+                    opt_file.write('------------ Options -------------\n')
+                    for k, v in sorted(args.items()):
+                        opt_file.write('%s: %s\n' % (str(k), str(v)))
+                    opt_file.write('-------------- End ----------------\n')
+        
+        # Store the parsed options in the global lock and return them.
+        _GLOBAL_PARSED_OPTIONS = self.opt
         return self.opt

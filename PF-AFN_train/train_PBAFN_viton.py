@@ -60,7 +60,7 @@ dataset_size = len(train_loader)
 print('#training images = %d' % dataset_size)
 
 warp_model = AFWM(opt, 3 + opt.label_nc)
-print(warp_model)
+# print(warp_model)
 warp_model.train()
 warp_model.cuda()
 warp_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(warp_model).to(device)
