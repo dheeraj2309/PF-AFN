@@ -24,7 +24,7 @@ class CPDataset(data.Dataset):
         self.fine_height = image_size
         self.fine_width = int(image_size / 256 * 192)
         self.semantic_nc = semantic_nc
-        self.data_path = osp.join(dataroot, mode)
+        self.data_path = dataroot
         self.toTensor = transforms.ToTensor()
         self.transform = transforms.Compose([
             transforms.ToTensor(),
