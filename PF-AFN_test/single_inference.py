@@ -5,9 +5,9 @@ import numpy as np
 import cv2
 from torchvision import transforms
 from PIL import Image
+import argparse
 
 # --- Import your project's model classes and functions ---
-from options.test_options import TestOptions
 from models.afwm import AFWM
 from models.networks import load_checkpoint
 
@@ -48,54 +48,101 @@ def preprocess_p_mode_agnostic(agnostic_path, height, width):
     agnostic_tensor = torch.from_numpy(resized_labels).unsqueeze(0).unsqueeze(0).float()
     return agnostic_tensor
 
+# --- Argument Parser ---
+
+def get_parser():
+    parser = argparse.ArgumentParser(description="Run single-image inference for the Warping Module.")
+    
+    # Input paths
+    parser.add_argument('-c', '--cloth', type=str, required=True, help="Path to the clothing image.")
+    parser.add_argument('-d', '--densepose', type=str, required=True, help="Path to the person's DensePose map.")
+    parser.add_argument('-a', '--agnostic', type=str, required=True, help="Path to the 'P' mode cloth-agnostic parse map.")
+    parser.add_argument('--checkpoint', type=str, required=True, help="Path to the pre-trained warping model checkpoint.")
+    
+    # Output path
+    parser.add_argument('-o', '--output', type=str, required=True, help="Path to save the final warped cloth image.")
+    
+    # Model/Execution parameters
+    parser.add_argument('--gpu_id', type=int, default=0, help="GPU ID to use for inference.")
+    
+    return parser
+
 # --- Main Inference Logic ---
 
-# 1. Setup Models and Options
-print("--- Initializing ---")
-opt = TestOptions().parse()
-device = torch.device(f'cuda:{opt.gpu_ids[0]}')
+def main(opt):
+    """
+    Main function to set up the model and process the single image pair.
+    """
+    # --- Setup ---
+    print("--- Initializing ---")
+    device = torch.device(f'cuda:{opt.gpu_id}')
+    
+    # Model's native input resolution
+    MODEL_HEIGHT = 256
+    MODEL_WIDTH = 192
+    
+    # Mock options object for model initialization, if needed.
+    # This avoids needing to pass many irrelevant training options.
+    class MockOptions:
+        def __init__(self):
+            self.label_nc = 20
+            self.grid_size = 5
+            self.semantic_nc = 13
 
-IMG_HEIGHT = 256
-IMG_WIDTH = 192
+    model_opt = MockOptions()
 
-warp_model = AFWM(opt, 4)
-warp_model.eval()
-warp_model.to(device)
-load_checkpoint(warp_model, opt.warp_checkpoint)
-print(f"--- Model loaded from {opt.warp_checkpoint} ---")
+    # --- Load Model ---
+    print(f"Loading model from checkpoint: {opt.checkpoint}")
+    if not os.path.exists(opt.checkpoint):
+        print(f"Error: Checkpoint file not found at '{opt.checkpoint}'")
+        return
+        
+    warp_model = AFWM(model_opt, 4) # 4 channels = 1 (agnostic) + 3 (densepose)
+    warp_model.eval()
+    warp_model.to(device)
+    load_checkpoint(warp_model, opt.checkpoint)
+    
+    # --- Load and Preprocess Inputs ---
+    print("Processing input images...")
+    try:
+        clothing_tensor = preprocess_rgb_image(opt.cloth, MODEL_HEIGHT, MODEL_WIDTH).to(device)
+        densepose_tensor = preprocess_rgb_image(opt.densepose, MODEL_HEIGHT, MODEL_WIDTH).to(device)
+        agnostic_tensor = preprocess_p_mode_agnostic(opt.agnostic, MODEL_HEIGHT, MODEL_WIDTH).to(device)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        return
+    except TypeError as e:
+        print(f"Error: {e}. Make sure the agnostic map is a 'P' mode PNG.")
+        return
 
-# 2. Define Input File Paths
-# >>>>>>>>>>>> IMPORTANT: CHANGE THESE PATHS TO YOUR FILES <<<<<<<<<<<<
-cloth_image_path    = 'data/test/cloth/000001_1.jpg'
-densepose_image_path  = 'data/test/image-densepose/000001_0.jpg'
-# This path should point to the 'P' mode agnostic map you created
-agnostic_map_path   = 'single_inference_data/test/image-parse-agnostic-v3.2/person1.png'
-person_image_path   = 'data/test/image/000001_0.jpg'
+    # --- Create Final Model Inputs ---
+    # Concatenate the agnostic map and the densepose map to create the person representation.
+    person_representation = torch.cat([agnostic_tensor, densepose_tensor], 1)
+    
+    # --- Run Inference ---
+    print("Running inference...")
+    with torch.no_grad():
+        flow_out = warp_model(person_representation, clothing_tensor)
+        warped_cloth, _ = flow_out
+        
+    # --- Save Result ---
+    print("Saving result...")
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(opt.output)
+    if output_dir: # Handle case where output is in the current directory
+        os.makedirs(output_dir, exist_ok=True)
+    
+    # Post-process the output tensor to a savable image
+    warped_cloth_np = (warped_cloth.squeeze().permute(1, 2, 0).cpu().numpy() + 1.0) / 2.0
+    warped_cloth_rgb = (warped_cloth_np * 255).astype(np.uint8)
+    warped_cloth_bgr = cv2.cvtColor(warped_cloth_rgb, cv2.COLOR_RGB2BGR)
+    
+    cv2.imwrite(opt.output, warped_cloth_bgr)
+    
+    print(f"\n--- Success! ---")
+    print(f"Warped cloth saved to: {opt.output}")
 
-# 3. Load and Preprocess All Inputs
-print(f"--- Processing Input Images ---")
-clothing_image  = preprocess_rgb_image(cloth_image_path, IMG_HEIGHT, IMG_WIDTH).to(device)
-densepose_image = preprocess_rgb_image(densepose_image_path, IMG_HEIGHT, IMG_WIDTH).to(device)
-agnostic_map    = preprocess_p_mode_agnostic(agnostic_map_path, IMG_HEIGHT, IMG_WIDTH).to(device)
-
-# 4. Create Final Model Inputs
-person_representation = torch.cat([agnostic_map, densepose_image], 1)
-
-print("--- Running Inference on a Single Image ---")
-# 5. Run the Model Inference
-with torch.no_grad():
-    flow_out = warp_model(person_representation, clothing_image)
-    warped_cloth, last_flow = flow_out
-
-# 6. Save the Result
-print("--- Saving Result ---")
-output_dir = os.path.join('results', opt.name, 'warping_module_output')
-os.makedirs(output_dir, exist_ok=True)
-
-warped_cloth_np = (warped_cloth.squeeze().permute(1, 2, 0).cpu().numpy() + 1.0) / 2.0
-warped_cloth_rgb = (warped_cloth_np * 255).astype(np.uint8)
-warped_cloth_bgr = cv2.cvtColor(warped_cloth_rgb, cv2.COLOR_RGB2BGR)
-
-output_filename = f"final_warped_result.png"
-cv2.imwrite(os.path.join(output_dir, output_filename), warped_cloth_bgr)
-print(f"--- Success! Warped cloth saved to: {os.path.join(output_dir, output_filename)} ---")
+if __name__ == '__main__':
+    parser = get_parser()
+    opt = parser.parse_args()
+    main(opt)
