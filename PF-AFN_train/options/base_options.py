@@ -54,7 +54,11 @@ class BaseOptions():
     def parse(self, save=True):
         if not self.initialized:
             self.initialize()
-        self.opt = self.parser.parse_known_args()
+        opt, _ = self.parser.parse_known_args()
+    
+    # MODIFICATION 2: Assign the unpacked 'opt' object to self.opt
+        self.opt = opt
+        
         self.opt.isTrain = self.isTrain   # train or test
 
         str_ids = self.opt.gpu_ids.split(',')
@@ -78,7 +82,8 @@ class BaseOptions():
         # save to the disk        
         expr_dir = os.path.join(self.opt.checkpoints_dir, self.opt.name)
         util.mkdirs(expr_dir)
-        if save and not self.opt.continue_train:
+        # MODIFICATION 3 (Optional but good practice): check if 'continue_train' exists before accessing
+        if save and not getattr(self.opt, 'continue_train', False):
             file_name = os.path.join(expr_dir, 'opt.txt')
             with open(file_name, 'wt') as opt_file:
                 opt_file.write('------------ Options -------------\n')
