@@ -153,16 +153,6 @@ class AFlowNet(nn.Module):
         self.netMain = nn.ModuleList(self.netMain)
         self.netRefine = nn.ModuleList(self.netRefine)
 
-
-    def forward(self, x, x_edge, x_warps, x_conds, warp_feature=True):
-        last_flow = None
-        last_flow_all = []
-        delta_list = []
-        x_all = []
-        x_edge_all = []
-        cond_fea_all = []
-        delta_x_all = []
-        delta_y_all = []
         filter_x = [[0, 0, 0],
                     [1, -2, 1],
                     [0, 0, 0]]
@@ -181,8 +171,21 @@ class AFlowNet(nn.Module):
         weight_array[:, :, 0, 2] = filter_diag1
         weight_array[:, :, 0, 3] = filter_diag2
 
-        weight_array = torch.cuda.FloatTensor(weight_array).permute(3,2,0,1)
-        self.weight = nn.Parameter(data=weight_array, requires_grad=False)
+        weight_tensor = torch.tensor(weight_array, dtype=torch.float32).permute(3, 2, 0, 1)
+        self.register_buffer('weight', weight_tensor)
+
+
+    def forward(self, x, x_edge, x_warps, x_conds, warp_feature=True):
+        last_flow = None
+        last_flow_all = []
+        delta_list = []
+        x_all = []
+        x_edge_all = []
+        cond_fea_all = []
+        delta_x_all = []
+        delta_y_all = []
+       
+
 
         for i in range(len(x_warps)):
               x_warp = x_warps[len(x_warps) - 1 - i]
