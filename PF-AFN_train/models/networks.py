@@ -169,26 +169,29 @@ class VGGLoss(nn.Module):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
         return loss
 
-def save_checkpoint(model, optimizer, epoch, step, save_path):
+def save_checkpoint(model, optimizer, scheduler, epoch, step, save_path):
     """
-    Saves a comprehensive checkpoint.
+    Saves a comprehensive checkpoint including the scheduler.
     """
     if not os.path.exists(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
-    
+
+    # The model state_dict is already handled by the calling script
+    # because of the DDP wrapper (.module attribute).
+    # So, 'model' here will actually be the state_dict.
     state = {
         'epoch': epoch,
         'step': step,
-        'state_dict': model.state_dict(),
+        'state_dict': model,  # 'model' is now the state_dict dictionary
         'optimizer': optimizer.state_dict(),
+        'scheduler': scheduler.state_dict() # Add the scheduler state
     }
     torch.save(state, save_path)
-    
+
     # Also save a 'latest' checkpoint for easy resuming
     latest_path = os.path.join(os.path.dirname(save_path), 'latest.pth')
     torch.save(state, latest_path)
     print(f"Checkpoint saved to {save_path} and {latest_path}")
-
 
 def load_checkpoint_parallel(model, checkpoint_path):
 
