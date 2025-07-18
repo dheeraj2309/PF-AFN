@@ -87,21 +87,32 @@ total_steps = 0
 if opt.continue_train:
     checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, f'{opt.which_epoch}.pth')
     
-    if os.path.exists(checkpoint_path):
-        print(f"Resuming training from checkpoint: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+    if opt.continue_train:
+    # Use 'latest.pth' for easy resuming, or a specific epoch file
+    # If which_epoch is 'latest', use latest.pth, otherwise construct the epoch-specific path.
+        if opt.which_epoch == 'latest':
+            checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, 'latest.pth')
+        else:
+            checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, f'PBAFN_warp_epoch_{opt.which_epoch}.pth')
         
-        model.module.load_state_dict(checkpoint['state_dict'])
-        optimizer_warp.load_state_dict(checkpoint['optimizer'])
-        scheduler.load_state_dict(checkpoint['scheduler'])
-        
-        start_epoch = checkpoint['epoch'] + 1
-        total_steps = checkpoint.get('step', 0)
-        epoch_iter = total_steps % dataset_size
+        if os.path.exists(checkpoint_path):
+            print(f"Resuming training from checkpoint: {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            
+            # This handles both DDP and single-GPU model states
+            model_to_load = model.module if hasattr(model, 'module') else model
+            model_to_load.load_state_dict(checkpoint['state_dict'])
+            
+            optimizer_warp.load_state_dict(checkpoint['optimizer'])
+            scheduler.load_state_dict(checkpoint['scheduler'])
+            
+            start_epoch = checkpoint['epoch'] + 1
+            total_steps = checkpoint.get('step', 0)
+            epoch_iter = total_steps % dataset_size
 
-        print(f"Loaded model from epoch {checkpoint['epoch']} at step {total_steps}. Resuming from epoch {start_epoch}.")
-    else:
-        print(f"WARNING: --continue_train was specified, but checkpoint not found at {checkpoint_path}. Starting from scratch.")
+            print(f"Loaded model from epoch {checkpoint['epoch']} at step {total_steps}. Resuming from epoch {start_epoch}.")
+        else:
+            print(f"WARNING: --continue_train was specified, but checkpoint not found at {checkpoint_path}. Starting from scratch.")
 
 if total_steps == 0:
     total_steps = (start_epoch - 1) * dataset_size + epoch_iter
