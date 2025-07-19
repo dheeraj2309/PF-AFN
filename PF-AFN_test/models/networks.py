@@ -163,24 +163,90 @@ class ResUnetSkipConnectionBlock(nn.Module):
             return torch.cat([x, self.model(x)], 1)
 
 
-def save_checkpoint(model, save_path):
+# def save_checkpoint(model, save_path):
+#     if not os.path.exists(os.path.dirname(save_path)):
+#         os.makedirs(os.path.dirname(save_path))
+#     torch.save(model.state_dict(), save_path)
+def save_checkpoint(model, optimizer, scheduler, epoch, step, save_path):
+    """
+    Saves a comprehensive checkpoint including the scheduler.
+    """
     if not os.path.exists(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
-    torch.save(model.state_dict(), save_path)
 
+    # The model state_dict is already handled by the calling script
+    # because of the DDP wrapper (.module attribute).
+    # So, 'model' here will actually be the state_dict.
+    state = {
+        'epoch': epoch,
+        'step': step,
+        'state_dict': model,  # 'model' is now the state_dict dictionary
+        'optimizer': optimizer.state_dict(),
+        'scheduler': scheduler.state_dict() # Add the scheduler state
+    }
+    torch.save(state, save_path)
 
+# def load_checkpoint(model, checkpoint_path):
+
+#     if not os.path.exists(checkpoint_path):
+#         print('No checkpoint!')
+#         return
+
+#     checkpoint = torch.load(checkpoint_path)
+#     checkpoint_new = model.state_dict()
+#     for param in checkpoint_new:
+#         checkpoint_new[param] = checkpoint[param]
+
+#     model.load_state_dict(checkpoint_new)
 def load_checkpoint(model, checkpoint_path):
+    """
+    Loads a checkpoint into the model.
 
+    This function is designed to be robust and can handle checkpoints saved
+    with or without a nested 'state_dict' key. It is suitable for inference.
+    """
     if not os.path.exists(checkpoint_path):
-        print('No checkpoint!')
+        print(f"Error: Checkpoint not found at '{checkpoint_path}'")
         return
 
-    checkpoint = torch.load(checkpoint_path)
-    checkpoint_new = model.state_dict()
-    for param in checkpoint_new:
-        checkpoint_new[param] = checkpoint[param]
+    # Load the checkpoint onto the CPU first to avoid GPU memory issues
+    # and to examine its structure. We'll move the model to the GPU later.
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
 
-    model.load_state_dict(checkpoint_new)
+    # --- Identify the actual state dictionary ---
+    # Check for common keys where the state_dict might be stored
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    elif 'model' in checkpoint:
+        state_dict = checkpoint['model']
+    else:
+        # If no common key is found, assume the checkpoint IS the state_dict
+        state_dict = checkpoint
+        print("Warning: Checkpoint does not contain a 'state_dict' key. "
+              "Assuming the file is a raw state_dict.")
+
+    # --- Clean the keys (e.g., remove 'module.' prefix from DDP) ---
+    # This makes the function work for models saved with or without DataParallel/DDP
+    cleaned_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith('module.'):
+            # Remove the 'module.' prefix
+            cleaned_state_dict[k[7:]] = v
+        else:
+            cleaned_state_dict[k] = v
+    
+    # --- Load the state_dict into the model ---
+    # `strict=False` is useful for transfer learning or if some layers are intentionally different.
+    # For evaluation, `strict=True` is better to ensure the architectures match perfectly.
+    # If you still get errors, `strict=False` can help you debug by printing missing/unexpected keys.
+    incompatible_keys = model.load_state_dict(cleaned_state_dict, strict=False)
+    
+    if incompatible_keys.missing_keys:
+        print(f"Warning: Missing keys in state_dict: {incompatible_keys.missing_keys}")
+    if incompatible_keys.unexpected_keys:
+        print(f"Warning: Unexpected keys in state_dict: {incompatible_keys.unexpected_keys}")
+
+    print(f"Successfully loaded checkpoint from {checkpoint_path}")
 
 
 
