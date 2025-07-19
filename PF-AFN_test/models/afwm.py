@@ -139,6 +139,29 @@ class AFlowNet(nn.Module):
 
         self.netMain = nn.ModuleList(self.netMain)
         self.netRefine = nn.ModuleList(self.netRefine)
+        self.netMain = nn.ModuleList(self.netMain)
+        self.netRefine = nn.ModuleList(self.netRefine)
+
+        filter_x = [[0, 0, 0],
+                    [1, -2, 1],
+                    [0, 0, 0]]
+        filter_y = [[0, 1, 0],
+                    [0, -2, 0],
+                    [0, 1, 0]]
+        filter_diag1 = [[1, 0, 0],
+                        [0, -2, 0],
+                        [0, 0, 1]]
+        filter_diag2 = [[0, 0, 1],
+                        [0, -2, 0],
+                        [1, 0, 0]]
+        weight_array = np.ones([3, 3, 1, 4])
+        weight_array[:, :, 0, 0] = filter_x
+        weight_array[:, :, 0, 1] = filter_y
+        weight_array[:, :, 0, 2] = filter_diag1
+        weight_array[:, :, 0, 3] = filter_diag2
+
+        weight_tensor = torch.tensor(weight_array, dtype=torch.float32).permute(3, 2, 0, 1)
+        self.register_buffer('weight', weight_tensor)
 
 
     def forward(self, x, x_warps, x_conds, warp_feature=True):
