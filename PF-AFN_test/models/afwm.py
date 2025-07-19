@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .correlation import correlation
+import numpy as np
 
 def apply_offset(offset):
 
