@@ -26,13 +26,17 @@ def copy_and_rename(
 def prepare_vton_input(sample_root, model_img_path, cloth_img_path, dest_root):
     sample_root = Path(sample_root)
     dest_root = Path(dest_root)
-    new_name = "00000_00"
+    model_img_path = Path(model_img_path)
+    cloth_img_path = Path(cloth_img_path)
 
-    # Extract the stem (filename without extension)
-    model_stem = Path(model_img_path).stem
-    cloth_stem = Path(cloth_img_path).stem
+    sample_test_root = dest_root / "sample" / "test"
+    sample_test_root.mkdir(parents=True, exist_ok=True)
 
-    # Folders and suffixes for model and cloth data
+    new_name = "00000_00"  # Define the new name for all renamed files
+
+    model_stem = model_img_path.stem
+    cloth_stem = cloth_img_path.stem
+
     model_related = {
         "image": ("", False),
         "image-parse-v3": ("", False),
@@ -50,20 +54,25 @@ def prepare_vton_input(sample_root, model_img_path, cloth_img_path, dest_root):
     # Copy model-related files
     for folder, (suffix, keep_suffix) in model_related.items():
         src = sample_root / folder
-        dst = dest_root / folder
+        dst = sample_test_root / folder
         copy_and_rename(src, dst, model_stem, new_name, suffix_override=suffix, keep_suffix=keep_suffix)
 
     # Copy cloth-related files
     for folder, (suffix, keep_suffix) in cloth_related.items():
         src = sample_root / folder
-        dst = dest_root / folder
+        dst = sample_test_root / folder
         copy_and_rename(src, dst, cloth_stem, new_name, suffix_override=suffix, keep_suffix=keep_suffix)
 
-    # Write test_pairs.txt (VTON expects .jpg)
-    with open(dest_root / "test_pairs.txt", "w") as f:
+    # Write test_pairs.txt inside sample/test
+    test_pairs_path = sample_test_root / "test_pairs.txt"
+    with open(test_pairs_path, "w") as f:
         f.write(f"{new_name}.jpg {new_name}.jpg\n")
 
-    print(f"\n✅ VTON-ready input prepared at: {dest_root}")
+    # Also copy it one level up to sample/
+    shutil.copy(test_pairs_path, dest_root / "sample" / "test_pairs.txt")
+
+    print(f"\n✅ VTON-ready input prepared at: {sample_test_root}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare VTON input structure from sample folders.")
