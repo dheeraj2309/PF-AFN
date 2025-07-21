@@ -4,7 +4,8 @@ import time
 import numpy as np
 import cv2
 import torch
-from torch.utils.data import DataLoader
+import random
+from torch.utils.data import DataLoader,Subset
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
@@ -27,7 +28,25 @@ if __name__ == '__main__':
 
     start_epoch, epoch_iter = 1, 0
 
-    train_data = CreateDataset(opt)
+    train_data_full = CreateDataset(opt)
+    if opt.num_test_samples > 0:
+        print(f"Selecting a random subset of {opt.num_test_samples} images with seed {opt.random_seed}.")
+        num_total_images = len(train_data_full)
+        
+        # Ensure the requested number of samples is not more than available
+        subset_size = min(opt.num_test_samples, num_total_images)
+        
+        # Generate a shuffled list of indices
+        indices = list(range(num_total_images))
+        random.seed(opt.random_seed)
+        random.shuffle(indices)
+        
+        # Select the subset of indices
+        subset_indices = indices[:subset_size]
+        train_data = Subset(train_data_full, subset_indices)
+    else:
+        print("Using the full test dataset.")
+        train_data = train_data_full
     train_loader = DataLoader(train_data, batch_size=opt.batchSize, shuffle=False,
                               num_workers=1, pin_memory=True)
     dataset_size = len(train_loader)
