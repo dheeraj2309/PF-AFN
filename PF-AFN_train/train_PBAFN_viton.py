@@ -94,8 +94,7 @@ if opt.continue_train:
             checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, 'latest.pth')
         else:
             print(f"DEBUG: Trying to find file at this exact path: '{checkpoint_path}'")
-            checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, f'PBAFN_warp_epoch_{int(opt.which_epoch):03d}.pth'
-    ))
+            checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, f'PBAFN_warp_epoch_{int(opt.which_epoch):03d}.pth')
         
         if os.path.exists(checkpoint_path):
             print(f"Resuming training from checkpoint: {checkpoint_path}")
