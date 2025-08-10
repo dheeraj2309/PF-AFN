@@ -93,6 +93,7 @@ if opt.continue_train:
         if opt.which_epoch == 'latest':
             checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, 'latest.pth')
         else:
+            print(f"DEBUG: Trying to find file at this exact path: '{checkpoint_path}'")
             checkpoint_path = os.path.join(opt.checkpoints_dir, opt.name, 'PBAFN_warp_epoch_%03d.pth' % int(opt.which_epoch))
         
         if os.path.exists(checkpoint_path):
